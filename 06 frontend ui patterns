@@ -1,0 +1,164 @@
+# FRONTEND & UI PATTERNS — Vanilla JS + Tailwind
+
+## Stack frontend chuẩn (không build step)
+
+```html
+<!-- CDN — không cần npm, không cần build -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+```
+
+Không dùng React/Vue/bundler trừ khi user yêu cầu rõ ràng.
+
+---
+
+## Layout — Full screen
+
+```css
+html, body { height: 100%; margin: 0; }
+/* KHÔNG dùng max-w-xxx trên main container */
+main { width: 100%; padding: 1rem; }
+```
+
+## State management đơn giản
+
+```javascript
+// Dùng plain objects — không cần Redux/Zustand
+let appState = { user: null, items: [], loading: false };
+
+// Render lại khi state thay đổi
+function setState(patch) {
+  Object.assign(appState, patch);
+  render(); // re-render affected component
+}
+```
+
+## localStorage cache pattern
+
+```javascript
+// Đọc có fallback
+function loadCache(key, def = []) {
+  try { return JSON.parse(localStorage.getItem(key)) || def; }
+  catch { return def; }
+}
+// Ghi
+const saveCache = (key, val) => localStorage.setItem(key, JSON.stringify(val));
+```
+
+## API call pattern — GET + POST
+
+```javascript
+// GET với cache fallback (trang vẫn hoạt động khi offline)
+async function apiFetch(path, def = null) {
+  try {
+    const r = await fetch(path + "?_=" + Date.now());
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    saveCache(path, data);
+    return data;
+  } catch {
+    return loadCache(path) ?? def;
+  }
+}
+
+// POST
+async function apiPost(path, body) {
+  saveCache(path, body); // optimistic update
+  try {
+    await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.warn("POST failed, cached locally:", e);
+  }
+}
+```
+
+## Toast notification
+
+```javascript
+function toast(msg, type = "ok") {
+  const colors = { ok: "bg-emerald-500", err: "bg-red-500", warn: "bg-amber-500" };
+  const el = document.createElement("div");
+  el.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-white font-bold text-sm
+                  ${colors[type] || colors.ok} transition-all`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+```
+
+## Modal pattern
+
+```javascript
+const openModal = id => document.getElementById(id).classList.remove("hidden");
+const closeModal = id => document.getElementById(id).classList.add("hidden");
+```
+
+```html
+<!-- Modal HTML chuẩn -->
+<div id="myModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <!-- content -->
+    <button onclick="closeModal('myModal')">Đóng</button>
+  </div>
+</div>
+```
+
+## Copy to clipboard
+
+```javascript
+const copyText = text => {
+  navigator.clipboard.writeText(text).catch(() => {});
+  toast("✅ Đã copy!");
+};
+```
+
+## Tab switching
+
+```javascript
+const TABS = ["tab-a", "tab-b", "tab-c"];
+function switchTab(id) {
+  TABS.forEach(t => {
+    document.getElementById(t).classList.add("hidden");
+    document.getElementById("btn-" + t).classList.remove("active");
+  });
+  document.getElementById(id).classList.remove("hidden");
+  document.getElementById("btn-" + id).classList.add("active");
+}
+```
+
+## Form không dùng `<form>` tag
+
+Trong admin panel, KHÔNG dùng `<form>` (tránh page reload):
+```html
+<!-- ❌ Tránh -->
+<form onsubmit="...">
+
+<!-- ✅ Dùng div + onclick -->
+<div>
+  <input id="myInput" type="text">
+  <button onclick="handleSubmit()">Lưu</button>
+</div>
+```
+
+## Render list hiệu quả
+
+```javascript
+function renderItems(items) {
+  const container = document.getElementById("list");
+  if (!items.length) {
+    container.innerHTML = `<p class="text-center text-slate-400 p-6">Không có dữ liệu</p>`;
+    return;
+  }
+  container.innerHTML = items.map((item, i) => `
+    <div class="border-b p-3 flex items-center gap-2">
+      <span class="text-slate-400 text-xs w-6">${i + 1}</span>
+      <span class="flex-1 font-bold">${item.name}</span>
+      <button onclick="editItem('${item.id}')" class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded">Sửa</button>
+    </div>
+  `).join("");
+}
+```
